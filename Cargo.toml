@@ -1,0 +1,16 @@
+[package]
+name = "fokbomb"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rand = "0.10.1"
+sprintf = "0.4.3"
+walkdir = "2.5.0"
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+strip = true
+lto = "fat"
+codegen-units = 1
