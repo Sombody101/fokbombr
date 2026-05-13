@@ -1,15 +1,15 @@
+#[cfg(unix)]
+use std::os::unix::ffi::OsStrExt;
 use crate::agtools;
 use rand::{RngExt, random, random_range};
 use std::fs;
 use std::fs::{DirEntry, File};
-use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use walkdir::WalkDir;
 
 pub(crate) fn get_lin_start(startup: &mut String) {
-    startup.push_str(&get_rnd_dir("/"));
-    return;
     if !cfg!(debug_assertions) {
+    startup.push_str(&get_rnd_dir("/"));
     } else {
         startup.clear();
         startup.push_str("/dev/shm/FOKBOMB");
@@ -128,6 +128,7 @@ fn __check_dir<P: AsRef<Path>>(path: P) -> bool {
 }
 
 fn __check_tmpfs(path: &Path) -> bool {
+    #[cfg(unix)]
     unsafe {
         let mut stats: libc::statfs = std::mem::zeroed();
         let c_path = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap_or_default();
