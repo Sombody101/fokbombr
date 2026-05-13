@@ -1,46 +1,59 @@
-name: Build Release
+name: Cross-Compile Release
 
 on:
   push:
     branches: [ "main" ]
 
+env:
+  BIN_NAME: fokbomb
+
 jobs:
   build:
+    name: Build (${{ matrix.target }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         target: [
           x86_64-unknown-linux-gnu,
           aarch64-unknown-linux-gnu,
-          x86_64-pc-windows-msvc
+          x86_64-pc-windows-gnu
         ]
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: actions/cache@v4
         with:
-          targets: ${{ matrix.target }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
+      - name: Install Cross
+        shell: bash
+        run: |
+          curl -L https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
 
-      - name: Build Binary
-        uses: houseabsolute/actions-rust-cross@v0
-        with:
-          command: build
-          target: ${{ matrix.target }}
-          args: "--release"
-          strip: true
+      - name: Compile Binary
+        run: cross build --release --target ${{ matrix.target }}
 
-      - name: Upload Artifact
+      - name: Prepare Artifact
+        shell: bash
+        run: |
+          # Determine extension and path
+          EXT=""
+          [[ "${{ matrix.target }}" == *"windows"* ]] && EXT=".exe"
+          
+          # Move and rename for easy identification
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/${{ env.BIN_NAME }}$EXT" "dist/${{ env.BIN_NAME }}-${{ matrix.target }}$EXT"
+
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.target }}
-          path: |
-            target/${{ matrix.target }}/release/fokbomb
-            target/${{ matrix.target }}/release/fokbomb.exe
+          name: ${{ env.BIN_NAME }}-${{ matrix.target }}
+          path: dist/*
