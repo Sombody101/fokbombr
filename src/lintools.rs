@@ -58,12 +58,15 @@ pub(crate) fn get_rnd_dir(dir: &str) -> String {
         .max_depth(5)
         .into_iter()
         .filter_entry(|e| {
-            let s: [u8; 0] = [];
-            let pb: &[u8] = if cfg!(unix) {
+            #[cfg(unix)]
+            let pb = {
+                use std::os::unix::ffi::OsStrExt;
                 e.path().as_os_str().as_bytes()
-            } else {
-                &s
             };
+
+            #[cfg(windows)]
+            let pb = e.path().to_str().map(|s| s.as_bytes()).unwrap_or(&[]);
+
             !blacklist.iter().any(|&prefix| pb.starts_with(prefix))
         })
         .filter_map(|e| e.ok());
